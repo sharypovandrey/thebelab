@@ -9,11 +9,15 @@ if (typeof window !== "undefined") {
 import { Widget } from "@phosphor/widgets";
 import { Kernel } from "@jupyterlab/services";
 import { ServerConnection } from "@jupyterlab/services";
+import { MathJaxTypesetter } from "@jupyterlab/mathjax2-extension";
 import { OutputArea, OutputAreaModel } from "@jupyterlab/outputarea";
-import { RenderMime, defaultRendererFactories } from "@jupyterlab/rendermime";
+import {
+  RenderMimeRegistry,
+  standardRendererFactories,
+} from "@jupyterlab/rendermime";
 import { Mode } from "@jupyterlab/codemirror";
 
-import "@jupyterlab/theme-light-extension/style/variables.css";
+import "@jupyterlab/theme-light-extension/static/index.css";
 import "./index.css";
 
 // events
@@ -90,7 +94,7 @@ export function getOption(key) {
 let _renderers = undefined;
 function getRenderers() {
   if (!_renderers) {
-    _renderers = defaultRendererFactories.filter(f => {
+    _renderers = standardRendererFactories.filter(f => {
       // filter out latex renderer if mathjax is unavailable
       if (f.mimeTypes.indexOf("text/latex") >= 0) {
         if (typeof window !== "undefined" && window.MathJax) {
@@ -115,8 +119,9 @@ function renderCell(element, options) {
   let $element = $(element);
   let source = $element.text().trim();
 
-  let renderMime = new RenderMime({
+  let renderMime = new RenderMimeRegistry({
     initialFactories: getRenderers(),
+    latexTypesetter: new MathJaxTypesetter(),
   });
   let model = new OutputAreaModel({ trusted: true });
 
@@ -202,6 +207,12 @@ export function requestKernel(kernelOptions) {
   // request a new Kernel
   kernelOptions = mergeOptions({ kernelOptions }).kernelOptions;
   if (kernelOptions.serverSettings) {
+    let ss = kernelOptions.serverSettings;
+    // workaround bug in jupyterlab where wsUrl and baseUrl must both be set
+    // https://github.com/jupyterlab/jupyterlab/pull/4427
+    if (ss.baseUrl && !ss.wsUrl) {
+      ss.wsUrl = "ws" + ss.baseUrl.slice(4);
+    }
     kernelOptions.serverSettings = ServerConnection.makeSettings(
       kernelOptions.serverSettings
     );
@@ -297,6 +308,7 @@ export function requestBinder({ repo, ref = "master", binderUrl = null } = {}) {
           resolve(
             ServerConnection.makeSettings({
               baseUrl: msg.url,
+              wsUrl: "ws" + msg.url.slice(4),
               token: msg.token,
             })
           );
@@ -312,7 +324,6 @@ export function requestBinder({ repo, ref = "master", binderUrl = null } = {}) {
 
 export function bootstrap(options) {
   // bootstrap thebe on the page
-
   // merge defaults, pageConfig, etc.
   options = mergeOptions(options);
 
@@ -322,6 +333,10 @@ export function bootstrap(options) {
   if (options.stripPrompts) {
     stripPrompts(options.stripPrompts);
   }
+  if (options.stripOutputPrompts) {
+    stripOutputPrompts(options.stripOutputPrompts);
+  }
+
   // bootstrap thebelab on the page
   let cells = renderAllCells({
     selector: options.selector,
@@ -356,6 +371,7 @@ export function bootstrap(options) {
     if (typeof window !== "undefined") window.thebeKernel = kernel;
     hookupKernel(kernel, cells);
   });
+  return kernelPromise;
 }
 
 function splitCell(element, { inPrompt, continuationPrompt } = {}) {
@@ -405,7 +421,52 @@ function splitCell(element, { inPrompt, continuationPrompt } = {}) {
   });
 }
 
+function splitCellOutputPrompt(element, { outPrompt } = {}) {
+  let rawText = element.text().trim();
+  if (rawText.indexOf(outPrompt) == -1) {
+    return element;
+  }
+  let cells = [];
+  let cell = null;
+  rawText.split("\n").map(line => {
+    line = line.trim();
+    if (line.slice(0, outPrompt.length) === outPrompt) {
+      // output line
+      if (cell) {
+        cells.push(cell);
+        cell = null;
+      }
+    } else {
+      // input line
+      if (cell) {
+        cell += line + "\n";
+      } else {
+        cell = line + "\n";
+      }
+    }
+  });
+  if (cell) {
+    cells.push(cell);
+  }
+  // console.log("cells: ", cells);
+  // clear the parent element
+  element.html("");
+  // add the thebe-able cells
+  cells.map(cell => {
+    element.append(
+      $("<pre>")
+        .text(cell)
+        .attr("data-executable", "true")
+    );
+  });
+}
+
 export function stripPrompts(options) {
   // strip prompts from a
   $(options.selector).map((i, el) => splitCell($(el), options));
+}
+
+export function stripOutputPrompts(options) {
+  // strip prompts from a
+  $(options.selector).map((i, el) => splitCellOutputPrompt($(el), options));
 }
