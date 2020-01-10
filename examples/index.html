@@ -3,6 +3,9 @@
   <meta HTTP-EQUIV="Content-Type" CONTENT="text/html; charset=UTF-8">
   <title>Thebe Lab examples</title>
   <link rel="stylesheet" type="text/css" href="index.css" />
+  
+  <link rel="stylesheet" type="text/css" href="../node_modules/codemirror/lib/codemirror.css" />
+  <script type="text/javascript" src="../node_modules/codemirror/lib/codemirror.js"></script>
 
   <!-- Configure and load Thebe !-->
   <script type="text/x-thebe-config">
@@ -10,15 +13,19 @@
       bootstrap: true,
       binderOptions: {
         repo: "binder-examples/requirements",
+        binderUrl: "https://binder.givemefive.in" // "https://mybinder.org"
       },
       kernelOptions: {
         name: "python3",
       },
+      codeMirrorConfig: {
+        theme: "abcdef"
+      }
     }
   </script>
-  <script type="text/javascript" src="https://unpkg.com/thebelab@latest"></script>
+  <!-- <script type="text/javascript" src="https://unpkg.com/thebelab@latest"></script> -->
   <!-- or to use a local build: -->
-  <!-- <script type="text/javascript" src="../lib/index.js"></script> -->
+  <script type="text/javascript" src="../lib/index.js"></script>
 
 </head>
 <body>
