@@ -187,14 +187,14 @@ function renderCell(element, options) {
   $cell.append($cm_element);
   $cell.append(
     $("<button class='thebelab-button thebelab-run-button'>")
-      .text("run")
-      .attr("title", "run this cell")
+      .text("ЗАПУСТИТЬ")
+      .attr("title", "Запустить код в этой ячейке")
       .click(execute)
   );
   $cell.append(
     $("<button class='thebelab-button thebelab-restart-button'>")
-      .text("restart")
-      .attr("title", "restart the kernel")
+      .text("ПЕРЕПОДКЛЮЧИТЬ")
+      .attr("title", "Переподключить сервер")
       .click(restart)
   );
   let kernelResolve, kernelReject;
