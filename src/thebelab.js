@@ -57,10 +57,10 @@ export const off = function() {
 // options
 
 const _defaultOptions = {
-  bootstrap: false,
+  bootstrap: true,
   preRenderHook: false,
   stripPrompts: false,
-  requestKernel: false,
+  requestKernel: true,
   predefinedOutput: true,
   mathjaxUrl: "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.5/MathJax.js",
   mathjaxConfig: "TeX-AMS_CHTML-full,Safe",
@@ -77,6 +77,7 @@ const _defaultOptions = {
 
 let _pageConfigData = undefined;
 function getPageConfig(key) {
+  console.log("getPageConfig", key);
   if (typeof window === "undefined") return;
   if (!_pageConfigData) {
     _pageConfigData = {};
@@ -104,6 +105,7 @@ function getPageConfig(key) {
 }
 
 export function mergeOptions(options) {
+  console.log("mergeOptions", options);
   // merge options from various sources
   // call > page > defaults
   let merged = {};
@@ -114,7 +116,9 @@ export function mergeOptions(options) {
   return merged;
 }
 
-export function getOption(key) {
+export function getOption(key) {  
+  console.log("getOption", key);
+
   return mergeOptions()[key];
 }
 
@@ -140,6 +144,7 @@ function getRenderers(options) {
 // rendering cells
 
 function renderCell(element, options) {
+  console.log("renderCell", element, options);
   // render a single cell
   // element should be a `<pre>` tag with some code in it
   let mergedOptions = mergeOptions({ options });
@@ -182,14 +187,14 @@ function renderCell(element, options) {
   $cell.append($cm_element);
   $cell.append(
     $("<button class='thebelab-button thebelab-run-button'>")
-      .text("run")
-      .attr("title", "run this cell")
+      .text("ЗАПУСТИТЬ")
+      .attr("title", "Запустить код в этой ячейке")
       .click(execute)
   );
   $cell.append(
     $("<button class='thebelab-button thebelab-restart-button'>")
-      .text("restart")
-      .attr("title", "restart the kernel")
+      .text("ПЕРЕПОДКЛЮЧИТЬ")
+      .attr("title", "Переподключить сервер")
       .click(restart)
   );
   let kernelResolve, kernelReject;
@@ -267,6 +272,8 @@ function renderCell(element, options) {
 }
 
 export function renderAllCells({ selector = _defaultOptions.selector } = {}) {
+  console.log("renderAllCells");
+
   // render all elements matching `selector` as cells.
   // by default, this is all cells with `data-executable`
 
@@ -282,6 +289,7 @@ export function renderAllCells({ selector = _defaultOptions.selector } = {}) {
 }
 
 export function hookupKernel(kernel, cells) {
+  console.log("hookupKernel", kernel, cells);
   // hooks up cells to the kernel
   cells.map((i, cell) => {
     $(cell).data("kernel-promise-resolve")(kernel);
@@ -291,6 +299,7 @@ export function hookupKernel(kernel, cells) {
 // requesting Kernels
 
 export function requestKernel(kernelOptions) {
+  console.log("requestKernel", kernelOptions);
   // request a new Kernel
   kernelOptions = mergeOptions({ kernelOptions }).kernelOptions;
   if (kernelOptions.serverSettings) {
@@ -300,34 +309,95 @@ export function requestKernel(kernelOptions) {
     if (ss.baseUrl && !ss.wsUrl) {
       ss.wsUrl = "ws" + ss.baseUrl.slice(4);
     }
+    console.log("requestKernel ss, ss.baseUrl, ss.wsUrl ", ss, ss.baseUrl, ss.wsUrl)
+    console.log("kernelOptions before", kernelOptions)
     kernelOptions.serverSettings = ServerConnection.makeSettings(
       kernelOptions.serverSettings
     );
+    console.log("kernelOptions after", kernelOptions)
   }
   events.trigger("status", {
     status: "starting",
     message: "Starting Kernel",
   });
   let p = Session.startNew(kernelOptions);
+  console.log("P", p);
   p.then(session => {
+    console.log("session", session)
     events.trigger("status", {
       status: "ready",
       message: "Kernel is ready",
     });
+    // save for later use
+    let baseUrl = kernelOptions.serverSettings.baseUrl;
+    let token = kernelOptions.serverSettings.token;
+    localStorage.serverSettings = JSON.stringify({ baseUrl, token })
     let k = session.kernel;
+    console.log("k", k)
     return k;
+  }).catch((e) => {
+    localStorage.removeItem('serverSettings');
+    console.log("error", e)
+    return false
   });
   return p;
 }
 
+export function getServerSettingsFromLocalstorage() {
+  if (localStorage.getItem("serverSettings") !== null) {
+    var serverSettings;
+    try {
+      serverSettings = JSON.parse(localStorage.serverSettings);
+    } catch (e) {
+      return false
+    }
+    if (serverSettings.baseUrl !== "" && 
+        serverSettings.baseUrl !== undefined && 
+        serverSettings.token !== "" && 
+        serverSettings.token !== undefined) {
+      return serverSettings
+    }
+  }
+  return false
+}
+
+function isBinderUrlValid(binder_url)
+{
+  var is_valid = false;
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", 'https://pythonai.ru/api/check-binder-url/', false);
+
+  //Send the proper header information along with the request
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  xhr.onreadystatechange = function() { // Call a function when the state changes.
+    console.log("request to pythonai", xhr.responseText, this.readyState, XMLHttpRequest.DONE, this.status);
+    if (this.readyState === XMLHttpRequest.DONE) {
+        is_valid = this.status == 200;
+    }
+  }
+
+  xhr.send("url=" + binder_url);
+  return is_valid;
+}
+
 export function requestBinderKernel({ binderOptions, kernelOptions }) {
-  // request a Kernel from Binder
-  // this strings together requestBinder and requestKernel.
-  // returns a Promise for a running Kernel.
-  return requestBinder(binderOptions).then(serverSettings => {
+  console.log("requestBinderKernel", binderOptions, kernelOptions );
+  let serverSettings = getServerSettingsFromLocalstorage();
+  var is_url_valid = isBinderUrlValid(serverSettings.baseUrl);
+  console.log("is_url_valid", is_url_valid);
+  if (serverSettings != false && is_url_valid) {
     kernelOptions.serverSettings = serverSettings;
+    console.log("requestKernel without build binder", kernelOptions);
     return requestKernel(kernelOptions);
-  });
+  } else {
+    localStorage.removeItem('serverSettings');
+    return requestBinder(binderOptions).then(serverSettings => {
+      kernelOptions.serverSettings = serverSettings;
+      console.log("requestKernel with build binder", kernelOptions);
+      return requestKernel(kernelOptions);
+    });
+  }
 }
 
 export function requestBinder({
@@ -336,6 +406,13 @@ export function requestBinder({
   binderUrl = null,
   repoProvider = "",
 } = {}) {
+  console.log("requestBinder",  {
+    repo,
+    ref,
+    binderUrl,
+    repoProvider,
+  });
+
   // request a server from Binder
   // returns a Promise that will resolve with a serverSettings dict
 
@@ -442,6 +519,7 @@ export function requestBinder({
 // do it all in one go
 
 export function bootstrap(options) {
+  console.log("bootstrap", options);
   // bootstrap thebe on the page
   // merge defaults, pageConfig, etc.
   options = mergeOptions(options);
@@ -495,6 +573,8 @@ export function bootstrap(options) {
 }
 
 function splitCell(element, { inPrompt, continuationPrompt } = {}) {
+  console.log("splitCell", element);
+
   let rawText = element.text().trim();
   if (rawText.indexOf(inPrompt) == -1) {
     return element;
@@ -542,6 +622,8 @@ function splitCell(element, { inPrompt, continuationPrompt } = {}) {
 }
 
 function splitCellOutputPrompt(element, { outPrompt } = {}) {
+  console.log("splitCellOutputPrompt", element);
+
   let rawText = element.text().trim();
   if (rawText.indexOf(outPrompt) == -1) {
     return element;
@@ -582,11 +664,15 @@ function splitCellOutputPrompt(element, { outPrompt } = {}) {
 }
 
 export function stripPrompts(options) {
+  console.log("stripPrompts", options);
+
   // strip prompts from a
   $(options.selector).map((i, el) => splitCell($(el), options));
 }
 
 export function stripOutputPrompts(options) {
+  console.log("stripOutputPrompts", options);
+
   // strip prompts from a
   $(options.selector).map((i, el) => splitCellOutputPrompt($(el), options));
 }

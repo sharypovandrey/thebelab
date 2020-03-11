@@ -10,12 +10,20 @@ function shim(regExp) {
 const pkg = require("./package.json");
 
 module.exports = {
+  mode: 'production',
+  // watch: true,
+  watchOptions: {
+    aggregateTimeout: 300,
+    poll: 1000,
+    ignored: ['node_modules/**', 'examples/**']
+  },
   devtool: "source-map",
   entry: ["./src/index.js"],
   output: {
-    filename: "index.js",
-    path: path.resolve(__dirname, "lib"),
-    publicPath: "https://unpkg.com/thebelab@" + pkg.version + "/lib/",
+    filename: "thebelab.js",
+    // path: path.resolve(__dirname, "lib"),
+    path: path.resolve(__dirname, 'dist'),
+    publicPath: "https://unpkg.com/" + pkg.name + "@" + pkg.version + "/dist/",
   },
   plugins: [
     // get slim jQuery
