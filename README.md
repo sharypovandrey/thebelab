@@ -131,3 +131,5 @@ A full config script with defaults:
 
 For building run
 npm run build
+
+npx webpack -o thebelab.js

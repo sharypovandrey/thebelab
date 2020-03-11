@@ -57,7 +57,7 @@ export const off = function() {
 // options
 
 const _defaultOptions = {
-  bootstrap: false,
+  bootstrap: true,
   preRenderHook: false,
   stripPrompts: false,
   requestKernel: true,
@@ -309,8 +309,7 @@ export function requestKernel(kernelOptions) {
     if (ss.baseUrl && !ss.wsUrl) {
       ss.wsUrl = "ws" + ss.baseUrl.slice(4);
     }
-    // TODO: ANDREY
-    console.log("!!!!!!!!!!!!!!! requestKernel ss, ss.baseUrl, ss.wsUrl ", ss, ss.baseUrl, ss.wsUrl)
+    console.log("requestKernel ss, ss.baseUrl, ss.wsUrl ", ss, ss.baseUrl, ss.wsUrl)
     console.log("kernelOptions before", kernelOptions)
     kernelOptions.serverSettings = ServerConnection.makeSettings(
       kernelOptions.serverSettings
@@ -362,39 +361,43 @@ export function getServerSettingsFromLocalstorage() {
   return false
 }
 
-export function deleteServerSettingsFromLocalstorage() {
-  localStorage.removeItem('serverSettings');
-}
+function isBinderUrlValid(binder_url)
+{
+  var is_valid = false;
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", 'https://pythonai.ru/api/check-binder-url/', false);
 
-export function requestBinderKernel_({binderOptions, kernelOptions})  {
-  return requestBinder(binderOptions).then(serverSettings => {
-    kernelOptions.serverSettings = serverSettings;
-    console.log("requestKernel with build binder", kernelOptions);
-    return requestKernel(kernelOptions);
-  });
+  //Send the proper header information along with the request
+  xhr.setRequestHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  xhr.onreadystatechange = function() { // Call a function when the state changes.
+    console.log("request to pythonai", xhr.responseText, this.readyState, XMLHttpRequest.DONE, this.status);
+    if (this.readyState === XMLHttpRequest.DONE) {
+        is_valid = this.status == 200;
+    }
+  }
+
+  xhr.send("url=" + binder_url);
+  return is_valid;
 }
 
 export function requestBinderKernel({ binderOptions, kernelOptions }) {
   console.log("requestBinderKernel", binderOptions, kernelOptions );
-  // request a Kernel from Binder
-  // this strings together requestBinder and requestKernel.
-  // returns a Promise for a running Kernel.
   let serverSettings = getServerSettingsFromLocalstorage();
-  if (serverSettings) {
+  var is_url_valid = isBinderUrlValid(serverSettings.baseUrl);
+  console.log("is_url_valid", is_url_valid);
+  if (serverSettings != false && is_url_valid) {
     kernelOptions.serverSettings = serverSettings;
-    console.log("try requestKernel without build binder", kernelOptions);
-    var kernel = requestKernel(kernelOptions);     
-    if (kernel != false) {
-      console.log("kernel != false", kernel);
-      return kernel
-    } else {
-      console.log("error", error);
-      return requestBinderKernel_({ binderOptions: binderOptions, kernelOptions: kernelOptions });
-    }
+    console.log("requestKernel without build binder", kernelOptions);
+    return requestKernel(kernelOptions);
   } else {
-    return requestBinderKernel_({ binderOptions: binderOptions, kernelOptions: kernelOptions });
+    localStorage.removeItem('serverSettings');
+    return requestBinder(binderOptions).then(serverSettings => {
+      kernelOptions.serverSettings = serverSettings;
+      console.log("requestKernel with build binder", kernelOptions);
+      return requestKernel(kernelOptions);
+    });
   }
-
 }
 
 export function requestBinder({
@@ -498,7 +501,6 @@ export function requestBinder({
           break;
         case "ready":
           es.close();
-          // TODO: ANDREY
           resolve(
             ServerConnection.makeSettings({
               baseUrl: msg.url,
