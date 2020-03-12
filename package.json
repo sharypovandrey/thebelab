@@ -1,6 +1,6 @@
 {
   "name": "projectx-thebelab",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "A version of Thebe built on JupyterLab",
   "main": "lib/index.js",
   "scripts": {

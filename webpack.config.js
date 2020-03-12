@@ -20,10 +20,9 @@ module.exports = {
   devtool: "source-map",
   entry: ["./src/index.js"],
   output: {
-    filename: "thebelab.js",
-    // path: path.resolve(__dirname, "lib"),
-    path: path.resolve(__dirname, 'dist'),
-    publicPath: "https://unpkg.com/" + pkg.name + "@" + pkg.version + "/dist/",
+    filename: "index.js",
+    path: path.resolve(__dirname, 'lib'),
+    publicPath: "https://unpkg.com/" + pkg.name + "@" + pkg.version + "/lib/",
   },
   plugins: [
     // get slim jQuery
